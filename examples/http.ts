@@ -1,13 +1,21 @@
+import { z } from "zod";
 import { Kaya } from "../src/index.js";
 
 const app = new Kaya()
   .get("/", () => {
     return new Response("OK");
   })
-  .get("/hello/:name", (context) => {
-    const { name = "world" } = context.params;
-    return new Response(`Hello ${name}!`);
-  });
+  .get(
+    "/hello/:name",
+    {
+      querySchema: z.object({
+        name: z.string(),
+      }),
+    },
+    (context) => {
+      return new Response(`Hello ${context.params.name}!`);
+    }
+  );
 
 console.log("Hello via Bun!");
 

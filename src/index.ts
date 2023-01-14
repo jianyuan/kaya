@@ -1,4 +1,5 @@
-import { createRouter, RadixNodeData, RadixRouter } from "radix3";
+import { createRouter, RadixRouter } from "radix3";
+import { z } from "zod";
 import { Equal, Expect } from "./types.test.js";
 
 const HTTPMethods = [
@@ -16,6 +17,10 @@ type Handler<P extends string = string> = (
   context: Context<P>
 ) => Response | Promise<Response>;
 
+type HandlerOptions<P extends string = string> = {
+  querySchema?: z.Schema<Record<keyof PathParams<P>, any>>;
+};
+
 type RouteNode = {
   handlers: Partial<Record<HTTPMethod | "all", Handler<any>>>;
 };
@@ -29,45 +34,140 @@ export class Kaya {
     this.routes = {};
   }
 
+  buildHandler<P extends string>(
+    handler: Handler<P>,
+    options?: HandlerOptions<P>
+  ): Handler<P> {
+    return (context) => {
+      if (options?.querySchema) {
+        // TODO: Safe parse
+        console.log(context.params);
+        context.params = options.querySchema.parse(context.params);
+      }
+      return handler(context);
+    };
+  }
+
   register<P extends string>(
     method: HTTPMethod | "all",
     path: P,
-    handler: Handler<P>
+    handlerOrOptions: Handler<P> | HandlerOptions<P>,
+    handler?: Handler<P>
   ) {
     if (!this.routes[path]) {
       this.routes[path] = { handlers: {} };
       this.router.insert(path, this.routes[path]);
     }
-    this.routes[path].handlers[method] = handler;
+
+    if (handler === undefined) {
+      this.routes[path].handlers[method] = this.buildHandler(
+        handlerOrOptions as Handler<P>
+      );
+    } else {
+      this.routes[path].handlers[method] = this.buildHandler(
+        handler,
+        handlerOrOptions as HandlerOptions<P>
+      );
+    }
     return this;
   }
 
-  get<P extends string>(path: P, handler: Handler<P>) {
-    return this.register("get", path, handler);
+  get<P extends string>(
+    path: P,
+    options: HandlerOptions<P>,
+    handler: Handler<P>
+  ): this;
+  get<P extends string>(path: P, handler: Handler<P>): this;
+  get<P extends string>(
+    path: P,
+    handlerOrOptions: Handler<P> | HandlerOptions<P>,
+    handler?: Handler<P>
+  ) {
+    return this.register("get", path, handlerOrOptions, handler);
   }
 
-  head<P extends string>(path: P, handler: Handler<P>) {
-    return this.register("head", path, handler);
+  head<P extends string>(
+    path: P,
+    options: HandlerOptions<P>,
+    handler: Handler<P>
+  ): this;
+  head<P extends string>(path: P, handler: Handler<P>): this;
+  head<P extends string>(
+    path: P,
+    handlerOrOptions: Handler<P> | HandlerOptions<P>,
+    handler?: Handler<P>
+  ) {
+    return this.register("head", path, handlerOrOptions, handler);
   }
 
-  post<P extends string>(path: P, handler: Handler<P>) {
-    return this.register("post", path, handler);
+  post<P extends string>(
+    path: P,
+    options: HandlerOptions<P>,
+    handler: Handler<P>
+  ): this;
+  post<P extends string>(path: P, handler: Handler<P>): this;
+  post<P extends string>(
+    path: P,
+    handlerOrOptions: Handler<P> | HandlerOptions<P>,
+    handler?: Handler<P>
+  ) {
+    return this.register("post", path, handlerOrOptions, handler);
   }
 
-  put<P extends string>(path: P, handler: Handler<P>) {
-    return this.register("put", path, handler);
+  put<P extends string>(
+    path: P,
+    options: HandlerOptions<P>,
+    handler: Handler<P>
+  ): this;
+  put<P extends string>(path: P, handler: Handler<P>): this;
+  put<P extends string>(
+    path: P,
+    handlerOrOptions: Handler<P> | HandlerOptions<P>,
+    handler?: Handler<P>
+  ) {
+    return this.register("put", path, handlerOrOptions, handler);
   }
 
-  delete<P extends string>(path: P, handler: Handler<P>) {
-    return this.register("delete", path, handler);
+  delete<P extends string>(
+    path: P,
+    options: HandlerOptions<P>,
+    handler: Handler<P>
+  ): this;
+  delete<P extends string>(path: P, handler: Handler<P>): this;
+  delete<P extends string>(
+    path: P,
+    handlerOrOptions: Handler<P> | HandlerOptions<P>,
+    handler?: Handler<P>
+  ) {
+    return this.register("delete", path, handlerOrOptions, handler);
   }
 
-  options<P extends string>(path: P, handler: Handler<P>) {
-    return this.register("options", path, handler);
+  options<P extends string>(
+    path: P,
+    options: HandlerOptions<P>,
+    handler: Handler<P>
+  ): this;
+  options<P extends string>(path: P, handler: Handler<P>): this;
+  options<P extends string>(
+    path: P,
+    handlerOrOptions: Handler<P> | HandlerOptions<P>,
+    handler?: Handler<P>
+  ) {
+    return this.register("options", path, handlerOrOptions, handler);
   }
 
-  patch<P extends string>(path: P, handler: Handler<P>) {
-    return this.register("patch", path, handler);
+  patch<P extends string>(
+    path: P,
+    options: HandlerOptions<P>,
+    handler: Handler<P>
+  ): this;
+  patch<P extends string>(path: P, handler: Handler<P>): this;
+  patch<P extends string>(
+    path: P,
+    handlerOrOptions: Handler<P> | HandlerOptions<P>,
+    handler?: Handler<P>
+  ) {
+    return this.register("patch", path, handlerOrOptions, handler);
   }
 
   fetch = (req: Request) => {
@@ -107,6 +207,14 @@ class Context<P extends string = string> {
   constructor(req: Request, params: PathParams<P>) {
     this.req = req;
     this.params = params;
+  }
+
+  json(value: any) {
+    return new Response(JSON.stringify(value));
+  }
+
+  text(value: string) {
+    return new Response(value);
   }
 }
 
