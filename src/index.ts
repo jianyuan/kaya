@@ -1,4 +1,5 @@
 import { createRouter, RadixNodeData, RadixRouter } from "radix3";
+import { Equal, Expect } from "./types.test.js";
 
 const HTTPMethods = [
   "get",
@@ -11,10 +12,12 @@ const HTTPMethods = [
 ] as const;
 type HTTPMethod = (typeof HTTPMethods)[number];
 
-type Handler = (context: Context) => Response | Promise<Response>;
+type Handler<P extends string = string> = (
+  context: Context<P>
+) => Response | Promise<Response>;
 
 type RouteNode = {
-  handlers: Partial<Record<HTTPMethod | "all", Handler>>;
+  handlers: Partial<Record<HTTPMethod | "all", Handler<any>>>;
 };
 
 export class Kaya {
@@ -26,7 +29,11 @@ export class Kaya {
     this.routes = {};
   }
 
-  register(method: HTTPMethod, path: string, handler: Handler) {
+  register<P extends string>(
+    method: HTTPMethod | "all",
+    path: P,
+    handler: Handler<P>
+  ) {
     if (!this.routes[path]) {
       this.routes[path] = { handlers: {} };
       this.router.insert(path, this.routes[path]);
@@ -35,31 +42,31 @@ export class Kaya {
     return this;
   }
 
-  get(path: string, handler: Handler) {
+  get<P extends string>(path: P, handler: Handler<P>) {
     return this.register("get", path, handler);
   }
 
-  head(path: string, handler: Handler) {
+  head<P extends string>(path: P, handler: Handler<P>) {
     return this.register("head", path, handler);
   }
 
-  post(path: string, handler: Handler) {
+  post<P extends string>(path: P, handler: Handler<P>) {
     return this.register("post", path, handler);
   }
 
-  put(path: string, handler: Handler) {
+  put<P extends string>(path: P, handler: Handler<P>) {
     return this.register("put", path, handler);
   }
 
-  delete(path: string, handler: Handler) {
+  delete<P extends string>(path: P, handler: Handler<P>) {
     return this.register("delete", path, handler);
   }
 
-  options(path: string, handler: Handler) {
+  options<P extends string>(path: P, handler: Handler<P>) {
     return this.register("options", path, handler);
   }
 
-  patch(path: string, handler: Handler) {
+  patch<P extends string>(path: P, handler: Handler<P>) {
     return this.register("patch", path, handler);
   }
 
@@ -93,12 +100,69 @@ function getPath(url: string) {
   return result;
 }
 
-class Context {
+class Context<P extends string = string> {
   req: Request;
-  params: Record<string, any>;
+  params: PathParams<P>;
 
-  constructor(req: Request, params: Record<string, any>) {
+  constructor(req: Request, params: PathParams<P>) {
     this.req = req;
     this.params = params;
   }
 }
+
+type ParamKey<
+  P extends string,
+  I extends never[] = []
+> = P extends `**:${infer Param}`
+  ? Param
+  : P extends `**${string}`
+  ? "_"
+  : P extends `*${string}`
+  ? `_${I["length"]}`
+  : P extends `:${infer Param}`
+  ? Param
+  : never;
+
+type ParamKeys<
+  P extends string,
+  I extends never[] = []
+> = P extends `${infer Head}/${infer Tail}`
+  ? Head extends "*"
+    ? ParamKey<Head, I> | ParamKeys<Tail, [...I, never]>
+    : ParamKey<Head, I> | ParamKeys<Tail, I>
+  : ParamKey<P, I>;
+
+type PathParams<P extends string> = Record<ParamKeys<P>, string>;
+
+type paramKeyCases = [
+  Expect<Equal<ParamKey<"never">, never>>,
+  Expect<Equal<ParamKey<":name">, "name">>,
+  Expect<Equal<ParamKey<"**">, "_">>,
+  Expect<Equal<ParamKey<"**:name">, "name">>,
+  Expect<Equal<ParamKey<"*">, "_0">>,
+  Expect<Equal<ParamKey<"*", [never]>, "_1">>,
+  Expect<Equal<ParamKey<"*", [never, never]>, "_2">>
+];
+
+type pathParamsCases = [
+  Expect<Equal<PathParams<"/a">, {}>>,
+  Expect<Equal<PathParams<"/a/:name">, { name: string }>>,
+  Expect<Equal<PathParams<"/a/**">, { _: string }>>,
+  Expect<Equal<PathParams<"/a/**:name">, { name: string }>>,
+  Expect<Equal<PathParams<"/a/*">, { _0: string }>>,
+  Expect<Equal<PathParams<"/a/*/b/*">, { _0: string; _1: string }>>,
+  Expect<
+    Equal<
+      PathParams<"/a/:name/b/*/c/*">,
+      { _0: string; _1: string; name: string }
+    >
+  >,
+  Expect<
+    Equal<
+      PathParams<"/a/*/b/*/c/:name">,
+      { _0: string; _1: string; name: string }
+    >
+  >,
+  Expect<Equal<PathParams<"/a/*/b/**">, { _0: string; _: string }>>,
+  Expect<Equal<PathParams<"/a/*/b/**:name">, { _0: string; name: string }>>
+];
