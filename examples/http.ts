@@ -15,6 +15,19 @@ const app = new Kaya()
     (context) => {
       return new Response(`Hello ${context.params.name}!`);
     }
+  )
+  .get(
+    "/posts/:id",
+    {
+      querySchema: z.object({
+        id: z.coerce.number(),
+      }),
+    },
+    (context) => {
+      return context.json({
+        post: { id: context.params.id },
+      });
+    }
   );
 
 console.log("Hello via Bun!");

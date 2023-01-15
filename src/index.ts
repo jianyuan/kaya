@@ -1,6 +1,7 @@
-import { createRouter, RadixRouter } from "radix3";
-import { z } from "zod";
-import { Equal, Expect } from "./types.test.js";
+import type { RadixRouter } from "radix3";
+import { createRouter } from "radix3";
+import type { z } from "zod";
+import type { PathParams } from "./types.js";
 
 const HTTPMethods = [
   "get",
@@ -18,7 +19,7 @@ type Handler<P extends string = string> = (
 ) => Response | Promise<Response>;
 
 type HandlerOptions<P extends string = string> = {
-  querySchema?: z.Schema<Record<keyof PathParams<P>, any>>;
+  querySchema?: z.ZodObject<Record<keyof PathParams<P>, any>>;
 };
 
 type RouteNode = {
@@ -217,60 +218,3 @@ class Context<P extends string = string> {
     return new Response(value);
   }
 }
-
-type ParamKey<
-  P extends string,
-  I extends never[] = []
-> = P extends `**:${infer Param}`
-  ? Param
-  : P extends `**${string}`
-  ? "_"
-  : P extends `*${string}`
-  ? `_${I["length"]}`
-  : P extends `:${infer Param}`
-  ? Param
-  : never;
-
-type ParamKeys<
-  P extends string,
-  I extends never[] = []
-> = P extends `${infer Head}/${infer Tail}`
-  ? Head extends "*"
-    ? ParamKey<Head, I> | ParamKeys<Tail, [...I, never]>
-    : ParamKey<Head, I> | ParamKeys<Tail, I>
-  : ParamKey<P, I>;
-
-type PathParams<P extends string> = Record<ParamKeys<P>, string>;
-
-type paramKeyCases = [
-  Expect<Equal<ParamKey<"never">, never>>,
-  Expect<Equal<ParamKey<":name">, "name">>,
-  Expect<Equal<ParamKey<"**">, "_">>,
-  Expect<Equal<ParamKey<"**:name">, "name">>,
-  Expect<Equal<ParamKey<"*">, "_0">>,
-  Expect<Equal<ParamKey<"*", [never]>, "_1">>,
-  Expect<Equal<ParamKey<"*", [never, never]>, "_2">>
-];
-
-type pathParamsCases = [
-  Expect<Equal<PathParams<"/a">, {}>>,
-  Expect<Equal<PathParams<"/a/:name">, { name: string }>>,
-  Expect<Equal<PathParams<"/a/**">, { _: string }>>,
-  Expect<Equal<PathParams<"/a/**:name">, { name: string }>>,
-  Expect<Equal<PathParams<"/a/*">, { _0: string }>>,
-  Expect<Equal<PathParams<"/a/*/b/*">, { _0: string; _1: string }>>,
-  Expect<
-    Equal<
-      PathParams<"/a/:name/b/*/c/*">,
-      { _0: string; _1: string; name: string }
-    >
-  >,
-  Expect<
-    Equal<
-      PathParams<"/a/*/b/*/c/:name">,
-      { _0: string; _1: string; name: string }
-    >
-  >,
-  Expect<Equal<PathParams<"/a/*/b/**">, { _0: string; _: string }>>,
-  Expect<Equal<PathParams<"/a/*/b/**:name">, { _0: string; name: string }>>
-];
